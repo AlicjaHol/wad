@@ -1,0 +1,184 @@
+---
+title: "Laboratorium 1"
+author: "Alicja Hołowiecka"
+date: "26 lutego 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = F,
+                      message = F)
+```
+
+```{r}
+library(tidyverse)
+library(rstatix)
+```
+
+```{r}
+head(mpg)
+```
+
+
+Zmienne:
+
+- trans - rodzaj skrzyni biegów, auto/manual (i ile/bez-stopniowa), zmienna grupująca
+
+- cty - spalanie w mieście
+
+- hwy - spalanie w trasie (highway)
+
+Zmienna trans: przekształcić tak żeby wyciąć auto lub manual
+
+Czy dwie grupy auto/manual różnią się pod względem spalania.
+
+```{r}
+#mpg$trans[startsWith(mpg$trans, 'auto')] <- 'auto'
+
+#mpg$trans[startsWith(mpg$trans, 'manual')] <- 'manual'
+
+```
+
+```{r}
+dane <- mpg %>% 
+  mutate(trans2 = word(trans,1, sep = fixed("(") )) %>% 
+  as.data.frame()
+
+```
+
+```{r}
+dane %>% 
+  group_by(trans2) %>%
+  mutate(n = n()) %>% 
+  group_by(trans2, n) %>% 
+  summarise_at(vars(cty, hwy),
+               list(~mean(.), ~sd(.))) 
+```
+
+```{r}
+get_summary_stats(dane)
+```
+
+Na 1 wykresie spalanie na autostradzie i w mieście w obu grupach.
+
+```{r}
+library(ggpubr)
+```
+
+```{r}
+dane %>% 
+  select(cty, hwy, trans2) %>% 
+  pivot_longer(cols = cty:hwy, 
+               names_to = "cty_hwy",
+               values_to = "mpg") %>% 
+  ggplot(aes(x = cty_hwy, y = mpg, color = trans2))+
+  geom_boxplot()
+```
+
+```{r}
+dane %>% 
+  select(cty, hwy, trans2) %>% 
+  ggboxplot(x = "trans2", 
+            y = c("cty", "hwy"), 
+            combine = 1,
+            color = "trans2",
+            add = "jitter")
+```
+
+
+```{r}
+dane %>%
+  select(trans2, cty, hwy) %>% 
+  group_split(trans2, keep = 0) %>% 
+  map(~mshapiro_test(.x))
+
+ 
+```
+
+Podział jest ze względu na `trans2` - alfabetycznie, czyli mamy:
+
+- dla grupy `auto` statystyka 0.97, p-value 0.00211, odrzucamy hipotezę o wielowymiarowej normalności `cty` i `hwy`
+
+- dla grupy `manual` statystyka 0.895, p-value 0.0000110, odrzucamy hipotezę o normalności wielowymiarowej
+
+```{r}
+dane %>% 
+  ggdensity(x = c("cty", "hwy"), 
+            fill = "trans2",
+            color = "trans2",
+            combine = 1,
+            alpha = 0.3)
+```
+
+`cty` prawa asymetria, `hwy` dwumodalne
+
+Nie są normalne ani brzegowo, ani dwuwymiarowo.
+
+```{r}
+summary(car::powerTransform(cbind(dane$cty, dane$hwy)~1))
+```
+
+```{r}
+dane %>% 
+  mutate(log_cty = log(cty), sqrt_hwy = sqrt(hwy)) %>% 
+  select(trans2, log_cty, sqrt_hwy) %>% 
+  group_split(trans2, keep = 0) %>% 
+  map(~mshapiro_test(.x))
+```
+
+Nadal nie jest spełnione założenie o normalności wielowymiarowej.
+
+ALE mamy liczną próbę - przypadków jest ponad 200.
+
+Ze względu na liczebność próby, przeprowadzamy test Hotellinga mimo niespełnienia założenia o normalności.
+
+```{r}
+box_m(dane[, c("cty", "hwy")], dane[, "trans2"])
+```
+
+Dla zmiennych bez transformacji nie ma jednorodności.
+
+```{r}
+d1 <- dane %>%
+  mutate(log_cty = log(cty), sqrt_hwy = sqrt(hwy)) %>%
+  select(trans2, log_cty, sqrt_hwy)
+        
+
+
+box_m(d1[, c("log_cty", "sqrt_hwy")], d1[, "trans2"])
+```
+
+
+Po transformacji jest jednorodność.
+
+```{r}
+library(Hotelling)
+hotelling <- hotelling.test(cbind(log_cty, sqrt_hwy)~trans2, data = d1)
+hotelling
+```
+
+Odrzucamy hipotezę zerową - wektory średnich w obu grupach nie są jednakowe.
+
+```{r}
+  d1 %>% 
+    pivot_longer(cols = log_cty:sqrt_hwy) %>% 
+  group_by(name) %>% 
+  levene_test(value~trans2)
+```
+
+Jest jednorodność wariancji w grupach, można stosować test t.
+
+```{r}
+d1 %>% 
+  pivot_longer(cols = log_cty:sqrt_hwy) %>% 
+  group_by(name) %>% 
+  t_test(value~trans2,
+         var.equal = 1)
+```
+
+Średnie `log_cty` różnią się pomiędzy `auto` a `manual`.
+
+Średnie `sqrt_hwy` różnią się pomiędzy `auto` a `manual`.
