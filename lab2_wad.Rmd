@@ -1,0 +1,224 @@
+---
+title: "Laboratorium 2"
+author: "Alicja Hołowiecka"
+date: "4 marca 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = F,
+                      message = F)
+```
+
+```{r}
+library(CCA)
+library(tidyverse)
+```
+
+```{r}
+head(iris)
+```
+
+Najpierw trzeba dokonać standaryzacji zmiennych.
+
+```{r}
+iris_std <- iris %>% 
+  select(-Species) %>% 
+  scale() %>% 
+  as.data.frame()
+```
+
+Gdybyśmy chcieli zachować zmienną Species:
+
+```{r}
+iris %>% 
+  mutate_if(is.numeric, scale)
+```
+
+Sepal podstawiamy pod X, Petal pod Y.
+
+```{r}
+X <- iris_std %>% 
+  select(Sepal.Length, Sepal.Width)
+```
+
+```{r}
+Y <- iris_std %>% 
+  select(Petal.Length, Petal.Width)
+```
+
+Macierz korelacji pomiędzy X a Y
+
+```{r}
+library(ggcorrplot)
+ggcorrplot(cor(X, Y), lab = T)
+```
+
+```{r}
+kor <- matcor(X, Y)
+img.matcor(kor, type = 2)
+```
+
+Model analizy kanonicznej
+
+cc - canonical correlation
+
+Zmienne standaryzowane!!
+
+```{r}
+mod_kan <- cc(X, Y)
+mod_kan
+```
+
+Korelacje między parami kanonicznymi (obiekt `cor`):
+
+- 0.94 między pierwszą parą kanoniczną
+
+- 0.12 w drugiej parze (bardzo słaba korelacja)
+
+Obiekty `xcoef` i `ycoef` - wagi w kombinacji do tworzenia zmiennych kanonicznych.
+
+Pary kanoniczne:
+
+\begin{align}
+
+U_1 =& -0.89 \cdot SL + 0.37 \cdot SW \\
+
+V_1 =& -1.5 \cdot PL + 0.53 \cdot PW \\
+
+U_2 =& 0.48 \cdot SL + 0.93 \cdot SW \\
+
+V_2 =& -3.39 \cdot PL + 3.67 \cdot PW
+
+\end{align}
+
+Wagi mówią o tym, która z cech jest ważniejsza dla danej zmiennej kanonicznej. Np dla $U_1$ większą wagę ma `Sepal.Length` (patrzymy na wartość bezwzględną).
+
+`Sepal.Length` i `Sepal.Width` mają przeciwny wpływ na $U_1$ (przeciwne znaki).
+
+W $V_1$ PL ma trzykrotnie większą wagę niż PW i z przeciwnym znakiem.
+
+Obiekt `scores` - przekształcone zmienne kanoniczne.
+
+Pierwsza kolumna `xscores` to wartości pierwszej zmiennej kanonicznej dla każdego ze 150 przypadków. Druga kolumna to wartości drugiej zmiennej kanonicznej.
+
+Analogicznie `yscores`.
+
+`corr.X.xscores` - korelacje pomiędzy pierwotnymi zmiennymi X ze zmiennymi kanonicznymi (pierwsza kolumna korelacje z $U_1$, druga kolumna korelacje z $U_2$).
+
+`corr.Y.xscores` - korelacje krzyżowe. Pierwotne Y z $U_1$ i $U_2$.
+
+W naszym przypadku obie silnie ujemnie skorelowane z $U_1$
+
+`cor.X.yscores` - krzyżowe X z $V_1$ i $V_2$
+
+`cor.Y.yscores` - korelacje Y z $v_1$ i $V_2$
+
+Ten sam przykład, ale w innym pakiecie.
+
+yacca - yet another canonical correlation analysis
+
+```{r}
+library(yacca)
+```
+
+Nie standaryzujemy zmiennych tym razem.
+
+```{r}
+X <- iris %>% 
+  select(Sepal.Length, Sepal.Width)
+Y <- iris %>% 
+  select(Petal.Length, Petal.Width)
+```
+
+Standaryzację zrobimy podczas tworzenia modelu.
+
+```{r}
+mod_kan2 <- cca(X, Y, xscale = T, yscale = T)
+summary(mod_kan2)
+```
+
+CV1 - korelacja kan pomiedzy pierwszą parą 0.94
+
+CV2 pomiedzy drugą parą 0.12
+
+Shared Variance on Each Canonical Variate - podniesiona do kwadratu wartość wsp korelacj (czyli wsp determinacji)
+
+Barlett's chi-sqared test - czy zestawy par kanonicznych są ze sobą istotnie skorelowane.
+
+Pierwszy wiersz - $H_0$ wszystkie korelacje kanoniczne są równe zero.
+
+Odrzucamy $H_0$ - jedna z nich nie jest zerowa (są ustawione od największej do najmniejszej)
+
+Z pierwszego wiersza u nas wynika że pierwsza para kanoniczna jest istotnie skorelowana.
+
+Drugi wiersz: testowanie $H_0$ ale po usunięciu z modelu pierwszej pary kanonicznej (najmocniej skorelowanej).
+
+Z drugiego wiersza wynika, że druga para nie jest istotnie skorelowana.
+
+Canonical Variate Coefficinets - współczynniki wagowe (wcześniej jako `xcoef`, wynik różni się od poprzedniego co do znaku, ale to nic, to nie wpływa na interpretację)
+
+Structural Correlations (Loadings) - korelacje X z kanonicznymi. SL 0.93, SW -0.48 (drugiej już nie interpretujemy, bo jest nieistotna).
+
+Korelacje Y z kanonicznymi PL 0.99, PW 0.91
+
+Fractional Variance Deposition on Canonical Variartes - powyższe wsp korelacji, podniesione do kwadratu. Pomagają ocenić, jaką część wariancji pierwotnych zmiennych wyjaśnia zmienna kanoniczna.
+
+86% zmienności SL wyjaśnione jest przez pierwszą zmienną kanoniczną.
+
+22% zmienności SW wyjaśnione jest przez pierwszą zmienną kanoniczną.
+
+Dla zmiennej $V_1$: 98% PL jest wyjaśnione, 84% PW jest wyjaśnione przez zmienną kanoniczną $V_1$.
+
+Canonical Communalities (fraction of total variance explained for each variable, within sets): 
+
+100% zmienności zmiennej Sepal (obu) zostało wyjaśnione przez łącznie obie zmienne kanoniczne. Dla Petal także jest to 100%.
+
+Kiedy może być mniej niż 100% np jak po prawej mamy 2 zmienne a po lewej 8 (wymiary nie są równe).
+
+Canonical variate adequacies:
+
+pierwsza zmienna kanoniczna ($U_1$) wyjaśnia przeciętnie 55% zmienności zmiennych Sepal. 
+
+przeciętnie 91% wariancji Petal zostało wyjaśnione przez zmienną kanoniczną $V_1$.
+
+Redundancy Coefficents
+
+X|Y - przeciętnie 48% zmienności zmiennych Sepal da się wyjasnić przez pierwszą parę kanoniczną przy ustalonych zmiennych Y (Petal).
+
+Y|X - przeciętnie 80% zmienności zmiennych Petal da się wyjaśnić poprzez pierwszą parę kanoniczną przy ustalonych zmiennych X (Sepal).
+
+```{r}
+helio.plot(mod_kan2, cv = 1)
+```
+
+linia ciągła - zerowa wartość ładunku.
+
+słupki - ładunki (korelacje zmiennych kanonicznych z pierwotnymi)
+
+im bliżej słupek jest zewnętrznego lub wewnętrznego okręgu tym bliżej 1; czarny dodatnia, biały ujemna.
+
+```{r}
+helio.plot(mod_kan2, cv = 1, type = "variance")
+```
+
+Wtedy słupki to procent wariancji wyjaśniany przez zmienne kanoniczne (czyli kwadraty korelacji).
+
+Zmienna kan po prawej str dobrze wyjaśnia zmienne PL i PW
+
+SL jest dobrze wyjaśniona, SW tak średnio.
+
+```{r}
+plot(mod_kan2)
+```
+
+pierwszy wykres - to co w teście Bartletta
+
+drugi wykres - redundancje (X względem Y, Y względem X)
+
+trzeci wykres - helio plot
+
+czwarty wykres - wyjaśniana wariancja
