@@ -1,0 +1,49 @@
+---
+title: "Laboratorium 2 - drugi plik"
+author: "Alicja Hołowiecka"
+date: "4 marca 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+```
+
+```{r}
+library(PBImisc)
+library(tidyverse)
+library(yacca)
+```
+
+```{r}
+head(kidney) # dane z PBImisc
+```
+
+Do zbioru X od 1 do 5 i od 7 do 8, a MDRD do Y. Będziemy badali jak parametry X (wiek, czas przewożenia nerki itd) czy wpływa na stan nerek po operacji
+
+```{r}
+dane <- kidney
+dane$therapy <- as.integer(dane$therapy)
+X <- dane[, c(1:5, 7:8)]
+Y <- dane[, 9:16]
+```
+
+```{r}
+mod_kan <- cca(X, Y, xscale = T, yscale = T)
+summary(mod_kan)
+```
+
+Pierwsze trzy pary kanoniczne są istotne.
+
+Na pierwszą zm kan po prawej, mają mocny wpływ donor.age oraz bpl.drugs. Wzrost tych cech powoduje spadek $U_1$, a spadek $U_1$ (przez dodatnią korelację) powoduje spadek $V_1$. Wzrost wieku dawcy i wzrost liczby leków na obniżenie ciśnienia powoduje spadek stanu nerki.
+
+Patrząc na canonical variate adequacies(poziom wyjaśnianej wariancji): pomimo że test bartletta wykazał istotność korelacji dla drugiej i trzeciej pary, to poziomy wyjaśnianej wariancji przez 2 i 3 zm kan po obu stronach są bardzo niskie, w zw z czym nie będziemy ich brali pod uwagę.
+
+Redundancja X|Y przeciętnie 4% wariancji zmiennych X można wyjaśnić poprzez pierwszą parę kanoniczną, przy ustalonych zmiennych w zbiorze Y.
+
+Przeciętnie 12% wariacnji zmiennych ze zbioru Y można wyjaśnić poprzez pierwszą parę kanoniczną przy ustalonych zmiennych w zbiorze X.
+
+
+TAKIE ZADANIE ZAWSZE JEST NA KOLOKWIUM. KILLER
